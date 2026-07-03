@@ -78,63 +78,155 @@ def process_telegram_message(message: dict):
         return
         
     # Command /start or /help
-    if text.startswith("/start") or text.startswith("/help"):
+    if text.startswith("/start") or text.startswith("/help") or text == "⬅️ Volver al Inicio":
         welcome = (
             "<b>¡Bienvenido al Buscador de Chamba del Estado!</b>\n\n"
-            "Este bot busca ofertas laborales del gobierno ordenadas por <b>menor experiencia</b>.\n\n"
-            "<b>Comandos disponibles:</b>\n"
-            "👉 <code>/chamba</code> - Convocatorias generales de Ingeniería Industrial.\n"
-            "👉 <code>/departamento</code> - Filtra convocatorias por región (convocatoriasdetrabajo.com).\n"
-            "👉 <code>/servir</code> - Ofertas del portal SERVIR (Lima por defecto).\n"
-            "👉 <code>/servir AREQUIPA</code> - Ofertas de SERVIR en un departamento específico.\n"
-            "👉 Pega cualquier URL de convocatoriasdetrabajo.com para procesarla directamente."
+            "Selecciona una opción del menú de abajo 👇 para empezar a buscar las convocatorias con <b>menos requisitos de experiencia</b>."
         )
-        send_telegram_message(chat_id, welcome)
+        # Teclado principal
+        reply_markup = {
+            "keyboard": [
+                [{"text": "💼 Portal Convocatorias"}, {"text": "🏛️ Portal SERVIR"}]
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": False
+        }
+        send_telegram_message(chat_id, welcome, reply_markup)
         return
-        
-    # Command /departamento
-    if text.startswith("/departamento"):
+
+    # Portal Convocatorias
+    if text == "💼 Portal Convocatorias":
+        menu_text = (
+            "<b>💼 Portal Convocatorias (convocatoriasdetrabajo.com)</b>\n\n"
+            "Elige cómo deseas buscar las ofertas de empleo:"
+        )
+        reply_markup = {
+            "keyboard": [
+                [{"text": "📍 Filtrar por Departamento"}, {"text": "🎓 Filtrar por Carrera"}],
+                [{"text": "⬅️ Volver al Inicio"}]
+            ],
+            "resize_keyboard": True
+        }
+        send_telegram_message(chat_id, menu_text, reply_markup)
+        return
+
+    # Portal SERVIR
+    if text == "🏛️ Portal SERVIR":
+        menu_text = (
+            "<b>🏛️ Portal de Empleos SERVIR</b>\n\n"
+            "Busca todas las convocatorias vigentes en el Estado cargadas en el portal SERVIR (CAS, Ley 728, etc.)."
+        )
+        reply_markup = {
+            "keyboard": [
+                [{"text": "📍 Buscar en SERVIR (Lima)"}, {"text": "🗺️ Buscar SERVIR por Región"}],
+                [{"text": "⬅️ Volver al Inicio"}]
+            ],
+            "resize_keyboard": True
+        }
+        send_telegram_message(chat_id, menu_text, reply_markup)
+        return
+
+    # Submenú Convocatorias: Carrera
+    if text == "🎓 Filtrar por Carrera":
+        carrera_text = "<b>Selecciona tu carrera o área para buscar en Convocatorias de Trabajo:</b>"
+        reply_markup = {
+            "keyboard": [
+                [{"text": "🏭 Ingeniería Industrial"}, {"text": "💻 Ingeniería de Sistemas"}],
+                [{"text": "📊 Administración"}, {"text": "💸 Contabilidad"}],
+                [{"text": "⚖️ Derecho"}, {"text": "💼 Convocatorias Generales (Ing. Industrial)"}],
+                [{"text": "⬅️ Volver al Inicio"}]
+            ],
+            "resize_keyboard": True
+        }
+        send_telegram_message(chat_id, carrera_text, reply_markup)
+        return
+
+    # Submenú Convocatorias: Departamento
+    if text == "📍 Filtrar por Departamento":
+        # Usamos inline keyboard para los departamentos ya que son muchos y es más limpio
         reply_markup = {
             "inline_keyboard": [
-                [
-                    {"text": "📍 Lima", "callback_data": "dep:15"},
-                    {"text": "📍 Callao", "callback_data": "dep:8"}
-                ],
-                [
-                    {"text": "📍 Arequipa", "callback_data": "dep:4"},
-                    {"text": "📍 La Libertad", "callback_data": "dep:13"}
-                ],
-                [
-                    {"text": "📍 Piura", "callback_data": "dep:20"},
-                    {"text": "📍 Cusco", "callback_data": "dep:7"}
-                ],
-                [
-                    {"text": "📍 Junín", "callback_data": "dep:12"},
-                    {"text": "📍 Lambayeque", "callback_data": "dep:14"}
-                ],
-                [
-                    {"text": "📍 Cajamarca", "callback_data": "dep:6"},
-                    {"text": "📍 Ancash", "callback_data": "dep:2"}
-                ]
+                [{"text": "📍 Lima", "callback_data": "dep:15"}, {"text": "📍 Callao", "callback_data": "dep:8"}],
+                [{"text": "📍 Arequipa", "callback_data": "dep:4"}, {"text": "📍 La Libertad", "callback_data": "dep:13"}],
+                [{"text": "📍 Piura", "callback_data": "dep:20"}, {"text": "📍 Cusco", "callback_data": "dep:7"}],
+                [{"text": "📍 Junín", "callback_data": "dep:12"}, {"text": "📍 Lambayeque", "callback_data": "dep:14"}],
+                [{"text": "📍 Cajamarca", "callback_data": "dep:6"}, {"text": "📍 Ancash", "callback_data": "dep:2"}]
             ]
         }
-        send_telegram_message(chat_id, "<b>Selecciona el departamento donde deseas buscar convocatorias:</b>", reply_markup)
+        send_telegram_message(chat_id, "<b>Selecciona el departamento para filtrar en Convocatorias de Trabajo:</b>", reply_markup)
         return
-        
-    # Command /servir [DEPARTAMENTO]
-    if text.startswith("/servir"):
-        parts = text.split(maxsplit=1)
-        dept = parts[1].strip().upper() if len(parts) > 1 else "LIMA"
-        send_telegram_message(chat_id, f"⏳ <i>Buscando ofertas en <b>SERVIR</b> para <b>{dept}</b>... Esto puede tardar 30-60 segundos (carga JS).</i>")
+
+    # Submenú SERVIR: Regiones
+    if text == "🗺️ Buscar SERVIR por Región":
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "🏛️ Lima", "callback_data": "servir:LIMA"}, {"text": "🏛️ Callao", "callback_data": "servir:CALLAO"}],
+                [{"text": "🏛️ Arequipa", "callback_data": "servir:AREQUIPA"}, {"text": "🏛️ La Libertad", "callback_data": "servir:LA LIBERTAD"}],
+                [{"text": "🏛️ Piura", "callback_data": "servir:PIURA"}, {"text": "🏛️ Cusco", "callback_data": "servir:CUSCO"}],
+                [{"text": "🏛️ Junín", "callback_data": "servir:JUNIN"}, {"text": "🏛️ Lambayeque", "callback_data": "servir:LAMBAYEQUE"}],
+                [{"text": "🏛️ Cajamarca", "callback_data": "servir:CAJAMARCA"}, {"text": "🏛️ Ancash", "callback_data": "servir:ANCASH"}]
+            ]
+        }
+        send_telegram_message(chat_id, "<b>Selecciona el departamento para buscar en el portal SERVIR:</b>", reply_markup)
+        return
+
+    # Acción Convocatorias Carrera: Ejecutar Scraper
+    carrera_urls = {
+        "🏭 Ingeniería Industrial": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-INGENIERIA-INDUSTRIAL-15.html?sort=1-valor_salario&departamento=15",
+        "💻 Ingeniería de Sistemas": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-INGENIERIA-DE-SISTEMAS-15.html?sort=1-valor_salario&departamento=15",
+        "📊 Administración": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-ADMINISTRACION-15.html?sort=1-valor_salario&departamento=15",
+        "💸 Contabilidad": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-CONTABILIDAD-15.html?sort=1-valor_salario&departamento=15",
+        "⚖️ Derecho": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-DERECHO-15.html?sort=1-valor_salario&departamento=15",
+        "💼 Convocatorias Generales (Ing. Industrial)": DEFAULT_SEARCH_URL
+    }
+
+    if text in carrera_urls:
+        target_url = carrera_urls[text]
+        carrera_name = text.split(" ", 1)[1] if " " in text else text
+        send_telegram_message(chat_id, f"⏳ <i>Buscando ofertas de empleo vigentes para <b>{carrera_name}</b>... Esto tomará unos segundos.</i>")
         try:
-            jobs = scrape_servir_for_bot(departamento=dept, max_pages=3)
+            jobs = scrape_convocatorias(target_url, pages=1, workers=5, timeout=15)
             if not jobs:
-                send_telegram_message(chat_id, f"❌ No se encontraron ofertas en SERVIR para <b>{dept}</b>.")
+                send_telegram_message(chat_id, f"❌ No se encontraron ofertas de empleo vigentes para <b>{carrera_name}</b>.")
+                return
+            
+            jobs.sort(key=lambda x: (x["experience_years"], -x["salary_numeric"]))
+            
+            response_lines = [f"<b>🔥 Ofertas para {carrera_name} (Menor Experiencia primero):</b>\n"]
+            for i, job in enumerate(jobs[:10], 1):
+                exp_label = "Sin Experiencia" if job['experience_years'] == 0.0 else f"{job['experience_years']} años"
+                salary_label = f"S/. {job['salary_numeric']:.2f}" if job['salary_numeric'] > 0 else "No especificado"
+                
+                line = (
+                    f"<b>{i}. {escape_html(job['entity'])}</b>\n"
+                    f"💼 {escape_html(job['title'])}\n"
+                    f"⭐ Exp: <b>{exp_label}</b> | 💵 <b>{salary_label}</b>\n"
+                    f"📅 Finaliza: {escape_html(job['ends_date'])}\n"
+                    f"👉 <a href='{job['detail_url']}'>Ver Convocatoria</a>\n"
+                )
+                response_lines.append(line)
+                
+            if len(jobs) > 10:
+                response_lines.append(f"<i>... y {len(jobs) - 10} ofertas más en el listado.</i>")
+                
+            send_telegram_message(chat_id, "\n".join(response_lines))
+        except Exception as e:
+            print(f"[ERROR] Carrera {carrera_name}: {e}")
+            send_telegram_message(chat_id, "❌ Ocurrió un error al procesar las convocatorias.")
+        return
+
+    # Acción SERVIR Lima Directa
+    if text == "📍 Buscar en SERVIR (Lima)" or text == "/servir":
+        send_telegram_message(chat_id, "⏳ <i>Buscando ofertas en <b>SERVIR (Lima)</b>... Esto tomará unos 30 segundos.</i>")
+        try:
+            jobs = scrape_servir_for_bot(departamento="LIMA", max_pages=3)
+            if not jobs:
+                send_telegram_message(chat_id, "❌ No se encontraron ofertas en SERVIR para LIMA.")
                 return
             
             jobs.sort(key=lambda x: (x.get('experiencia_years', 0.0), -x.get('remuneracion_numeric', 0.0)))
             
-            response_lines = [f"<b>🏛️ Ofertas SERVIR en {dept} (Menor Experiencia primero):</b>\n"]
+            response_lines = ["<b>🏛️ Ofertas en SERVIR Lima (Menor Experiencia primero):</b>\n"]
             for i, job in enumerate(jobs[:10], 1):
                 exp_years = job.get('experiencia_years', 0.0)
                 exp_label = "Sin Experiencia" if exp_years == 0.0 else f"{exp_years:.1f} años"
@@ -156,8 +248,8 @@ def process_telegram_message(message: dict):
             
             send_telegram_message(chat_id, "\n".join(response_lines))
         except Exception as e:
-            print(f"[ERROR] /servir: {e}")
-            send_telegram_message(chat_id, "❌ Ocurrió un error al consultar SERVIR. Intenta nuevamente.")
+            print(f"[ERROR] SERVIR Lima: {e}")
+            send_telegram_message(chat_id, "❌ Ocurrió un error al consultar SERVIR.")
         return
 
     # Command /chamba
@@ -260,6 +352,42 @@ def process_telegram_callback(callback_query: dict):
         except Exception as e:
             print(f"[ERROR] Error processing callback: {e}")
             send_telegram_message(chat_id, "❌ Ocurrió un error al procesar las convocatorias para esta región.")
+
+    elif data.startswith("servir:"):
+        dept_name = data.split(":")[1]
+        send_telegram_message(chat_id, f"⏳ <i>Buscando ofertas en <b>SERVIR ({dept_name})</b>... Esto puede tardar unos 30-40 segundos.</i>")
+        try:
+            jobs = scrape_servir_for_bot(departamento=dept_name, max_pages=3)
+            if not jobs:
+                send_telegram_message(chat_id, f"❌ No se encontraron ofertas en SERVIR para <b>{dept_name}</b>.")
+                return
+            
+            jobs.sort(key=lambda x: (x.get('experiencia_years', 0.0), -x.get('remuneracion_numeric', 0.0)))
+            
+            response_lines = [f"<b>🏛️ Ofertas en SERVIR {dept_name} (Menor Experiencia primero):</b>\n"]
+            for i, job in enumerate(jobs[:10], 1):
+                exp_years = job.get('experiencia_years', 0.0)
+                exp_label = "Sin Experiencia" if exp_years == 0.0 else f"{exp_years:.1f} años"
+                sal = job.get('remuneracion_numeric', 0.0)
+                sal_label = f"S/. {sal:.0f}" if sal > 0 else "No especificado"
+                link = job.get('link_detalle', '')
+                link_html = f" | <a href='{link}'>Ver</a>" if link else ""
+                
+                line = (
+                    f"<b>{i}. {escape_html(job.get('entidad', 'N/D'))}</b>\n"
+                    f"💼 {escape_html(job.get('puesto', 'N/D'))}\n"
+                    f"⭐ Exp: <b>{exp_label}</b> | 💵 <b>{sal_label}</b> | 📌 {escape_html(job.get('regimen', ''))}\n"
+                    f"📅 Cierre: {escape_html(job.get('fecha_fin', 'N/D'))}{link_html}\n"
+                )
+                response_lines.append(line)
+            
+            if len(jobs) > 10:
+                response_lines.append(f"<i>... y {len(jobs) - 10} ofertas más.</i>")
+            
+            send_telegram_message(chat_id, "\n".join(response_lines))
+        except Exception as e:
+            print(f"[ERROR] SERVIR callback: {e}")
+            send_telegram_message(chat_id, "❌ Ocurrió un error al consultar SERVIR para esta región.")
 
 
 def telegram_polling_worker():
