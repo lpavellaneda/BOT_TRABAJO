@@ -289,7 +289,7 @@ def process_telegram_callback(callback_query: dict):
         return
 
     if data == "menu:carrera_list":
-        carrera_text = "<b>Selecciona tu carrera o área de búsqueda:</b>"
+        carrera_text = "<b>🎓 Selecciona tu carrera o área de búsqueda (Lima por defecto):</b>"
         reply_markup = {
             "inline_keyboard": [
                 [{"text": "🏭 Ingeniería Industrial", "callback_data": "carrera:INDUSTRIAL"}],
@@ -297,6 +297,7 @@ def process_telegram_callback(callback_query: dict):
                 [{"text": "📊 Administración", "callback_data": "carrera:ADMINISTRACION"}],
                 [{"text": "💸 Contabilidad", "callback_data": "carrera:CONTABILIDAD"}],
                 [{"text": "⚖️ Derecho", "callback_data": "carrera:DERECHO"}],
+                [{"text": "🏫 Educación", "callback_data": "carrera:EDUCACION"}],
                 [{"text": "⬅️ Volver al menú anterior", "callback_data": "menu:convocatorias"}]
             ]
         }
@@ -311,11 +312,14 @@ def process_telegram_callback(callback_query: dict):
             "SISTEMAS": "INGENIERIA-DE-SISTEMAS",
             "ADMINISTRACION": "ADMINISTRACION",
             "CONTABILIDAD": "CONTABILIDAD",
-            "DERECHO": "DERECHO"
+            "DERECHO": "DERECHO",
+            "EDUCACION": "EDUCACION"
         }
         c_code = carrera_names.get(carrera_id, "INGENIERIA-INDUSTRIAL")
-        # Estructura de búsqueda de carrera en el portal general (carrera sin código de dep si es general)
-        target_url = f"https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-{c_code}.html?sort=1-valor_salario"
+        
+        # Estructura correcta requerida por el sitio: requiere sufijo de departamento (-15.html) y parámetro de query (?departamento=15)
+        # Usamos Lima (15) por defecto ya que las búsquedas sin departamento no son soportadas directamente por el sitio
+        target_url = f"https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-{c_code}-15.html?sort=1-valor_salario&departamento=15"
         
         send_telegram_message(chat_id, f"⏳ <i>Buscando ofertas de empleo para <b>{carrera_id}</b>... Esto tomará unos segundos.</i>")
         try:
