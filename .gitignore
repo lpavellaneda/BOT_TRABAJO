@@ -1,0 +1,21 @@
+# Ignorar base de datos local y outputs CSV
+output/
+*.csv
+*.xlsx
+
+# Ignorar variables de entorno privadas
+.env
+.env.local
+
+# Python temporales
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.vscode/
+.idea/
+servir_live.html
+servir_landing.html
+servir_after_search.html
