@@ -231,18 +231,19 @@ def process_telegram_callback(callback_query: dict):
         return
 
     if data == "menu:convocatorias":
-        menu_text = (
-            "<b>💼 Portal Convocatorias (convocatoriasdetrabajo.com)</b>\n\n"
-            "Selecciona un método de búsqueda:"
-        )
+        carrera_text = "<b>🎓 Selecciona tu carrera o área de búsqueda:</b>"
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "📍 Filtrar por Departamento", "callback_data": "menu:dep_list"}],
-                [{"text": "🎓 Filtrar por Carrera", "callback_data": "menu:carrera_list"}],
+                [{"text": "🏭 Ingeniería Industrial", "callback_data": "carrera:INDUSTRIAL"}],
+                [{"text": "💻 Ingeniería de Sistemas", "callback_data": "carrera:SISTEMAS"}],
+                [{"text": "📊 Administración", "callback_data": "carrera:ADMINISTRACION"}],
+                [{"text": "💸 Contabilidad", "callback_data": "carrera:CONTABILIDAD"}],
+                [{"text": "⚖️ Derecho", "callback_data": "carrera:DERECHO"}],
+                [{"text": "🏫 Educación", "callback_data": "carrera:EDUCACION"}],
                 [{"text": "⬅️ Volver al Inicio", "callback_data": "menu:inicio"}]
             ]
         }
-        send_telegram_message(chat_id, menu_text, reply_markup)
+        send_telegram_message(chat_id, carrera_text, reply_markup)
         return
 
     if data == "menu:servir":
@@ -260,20 +261,6 @@ def process_telegram_callback(callback_query: dict):
         send_telegram_message(chat_id, menu_text, reply_markup)
         return
 
-    if data == "menu:dep_list":
-        reply_markup = {
-            "inline_keyboard": [
-                [{"text": "📍 Lima", "callback_data": "dep:15"}, {"text": "📍 Callao", "callback_data": "dep:8"}],
-                [{"text": "📍 Arequipa", "callback_data": "dep:4"}, {"text": "📍 La Libertad", "callback_data": "dep:13"}],
-                [{"text": "📍 Piura", "callback_data": "dep:20"}, {"text": "📍 Cusco", "callback_data": "dep:7"}],
-                [{"text": "📍 Junín", "callback_data": "dep:12"}, {"text": "📍 Lambayeque", "callback_data": "dep:14"}],
-                [{"text": "📍 Cajamarca", "callback_data": "dep:6"}, {"text": "📍 Ancash", "callback_data": "dep:2"}],
-                [{"text": "⬅️ Volver al menú anterior", "callback_data": "menu:convocatorias"}]
-            ]
-        }
-        send_telegram_message(chat_id, "<b>Selecciona el departamento para filtrar en Convocatorias de Trabajo:</b>", reply_markup)
-        return
-
     if data == "menu:servir_regiones":
         reply_markup = {
             "inline_keyboard": [
@@ -288,25 +275,35 @@ def process_telegram_callback(callback_query: dict):
         send_telegram_message(chat_id, "<b>Selecciona el departamento para buscar en el portal SERVIR:</b>", reply_markup)
         return
 
-    if data == "menu:carrera_list":
-        carrera_text = "<b>🎓 Selecciona tu carrera o área de búsqueda (Lima por defecto):</b>"
-        reply_markup = {
-            "inline_keyboard": [
-                [{"text": "🏭 Ingeniería Industrial", "callback_data": "carrera:INDUSTRIAL"}],
-                [{"text": "💻 Ingeniería de Sistemas", "callback_data": "carrera:SISTEMAS"}],
-                [{"text": "📊 Administración", "callback_data": "carrera:ADMINISTRACION"}],
-                [{"text": "💸 Contabilidad", "callback_data": "carrera:CONTABILIDAD"}],
-                [{"text": "⚖️ Derecho", "callback_data": "carrera:DERECHO"}],
-                [{"text": "🏫 Educación", "callback_data": "carrera:EDUCACION"}],
-                [{"text": "⬅️ Volver al menú anterior", "callback_data": "menu:convocatorias"}]
-            ]
-        }
-        send_telegram_message(chat_id, carrera_text, reply_markup)
-        return
-
-    # Acción de búsqueda por carrera
+    # Acción de seleccionar carrera -> Lleva a seleccionar departamento
     if data.startswith("carrera:"):
         carrera_id = data.split(":")[1]
+        carrera_names = {
+            "INDUSTRIAL": "Ingeniería Industrial",
+            "SISTEMAS": "Ingeniería de Sistemas",
+            "ADMINISTRACION": "Administración",
+            "CONTABILIDAD": "Contabilidad",
+            "DERECHO": "Derecho",
+            "EDUCACION": "Educación"
+        }
+        c_name = carrera_names.get(carrera_id, "Ingeniería Industrial")
+        
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "📍 Lima", "callback_data": f"buscar:{carrera_id}:15"}],
+                [{"text": "📍 Junín", "callback_data": f"buscar:{carrera_id}:12"}],
+                [{"text": "⬅️ Volver a Carreras", "callback_data": "menu:convocatorias"}]
+            ]
+        }
+        send_telegram_message(chat_id, f"<b>¿En qué departamento deseas buscar para la carrera {c_name}?</b>", reply_markup)
+        return
+
+    # Acción final de búsqueda (Carrera + Departamento)
+    if data.startswith("buscar:"):
+        parts = data.split(":")
+        carrera_id = parts[1]
+        dep_id = parts[2]
+        
         carrera_names = {
             "INDUSTRIAL": "INGENIERIA-INDUSTRIAL",
             "SISTEMAS": "INGENIERIA-DE-SISTEMAS",
@@ -315,22 +312,37 @@ def process_telegram_callback(callback_query: dict):
             "DERECHO": "DERECHO",
             "EDUCACION": "EDUCACION"
         }
+        
+        # Códigos de departamento base de las carreras por defecto en el portal
+        # Si la carrera es Educación, usa Educación-4 (Arequipa) como base y cambia el parámetro de departamento
+        carrera_base_codes = {
+            "INDUSTRIAL": "INGENIERIA-INDUSTRIAL-15",
+            "SISTEMAS": "INGENIERIA-DE-SISTEMAS-15",
+            "ADMINISTRACION": "ADMINISTRACION-15",
+            "CONTABILIDAD": "CONTABILIDAD-15",
+            "DERECHO": "DERECHO-15",
+            "EDUCACION": "EDUCACION-4" # Educación usa Educación-4 por defecto
+        }
+        
+        dep_names = {"15": "Lima", "12": "Junín"}
+        dep_name = dep_names.get(dep_id, "Desconocido")
         c_code = carrera_names.get(carrera_id, "INGENIERIA-INDUSTRIAL")
+        c_base = carrera_base_codes.get(carrera_id, f"{c_code}-15")
         
-        # Estructura correcta requerida por el sitio: requiere sufijo de departamento (-15.html) y parámetro de query (?departamento=15)
-        # Usamos Lima (15) por defecto ya que las búsquedas sin departamento no son soportadas directamente por el sitio
-        target_url = f"https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-{c_code}-15.html?sort=1-valor_salario&departamento=15"
+        # URL dinámica según tu ejemplo:
+        # e.g., ofertas-de-empleo-en-EDUCACION-4.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=
+        target_url = f"https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-{c_base}.html?sort=1-fechapublicacion&contrato=&departamento={dep_id}&nivel_estudios="
         
-        send_telegram_message(chat_id, f"⏳ <i>Buscando ofertas de empleo para <b>{carrera_id}</b>... Esto tomará unos segundos.</i>")
+        send_telegram_message(chat_id, f"⏳ <i>Buscando convocatorias para <b>{carrera_id}</b> en <b>{dep_name}</b>... Esto tomará unos segundos.</i>")
         try:
             jobs = scrape_convocatorias(target_url, pages=1, workers=5, timeout=15)
             if not jobs:
-                send_telegram_message(chat_id, f"❌ No se encontraron ofertas de empleo vigentes para <b>{carrera_id}</b>.")
+                send_telegram_message(chat_id, f"❌ No se encontraron ofertas de empleo vigentes para <b>{carrera_id}</b> en <b>{dep_name}</b>.")
                 return
             
             jobs.sort(key=lambda x: (x["experience_years"], -x["salary_numeric"]))
             
-            response_lines = [f"<b>🔥 Ofertas para {carrera_id} (Menor Experiencia primero):</b>\n"]
+            response_lines = [f"<b>🔥 Ofertas para {carrera_id} en {dep_name} (Menor Experiencia primero):</b>\n"]
             for i, job in enumerate(jobs[:10], 1):
                 exp_label = "Sin Experiencia" if job['experience_years'] == 0.0 else f"{job['experience_years']} años"
                 salary_label = f"S/. {job['salary_numeric']:.2f}" if job['salary_numeric'] > 0 else "No especificado"
@@ -349,8 +361,8 @@ def process_telegram_callback(callback_query: dict):
                 
             send_telegram_message(chat_id, "\n".join(response_lines))
         except Exception as e:
-            print(f"[ERROR] Carrera callback {carrera_id}: {e}")
-            send_telegram_message(chat_id, "❌ Ocurrió un error al procesar las convocatorias para esta carrera.")
+            print(f"[ERROR] Carrera callback {carrera_id} en {dep_name}: {e}")
+            send_telegram_message(chat_id, f"❌ Ocurrió un error al procesar las convocatorias para {carrera_id} en {dep_name}.")
         return
 
     if data.startswith("dep:"):
