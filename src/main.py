@@ -20,6 +20,11 @@ RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")  # Render automatically s
 DEFAULT_SEARCH_URL = "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-INGENIERIA-INDUSTRIAL-15.html?sort=1-valor_salario&departamento=15"
 BASE_PATH_TEMPLATE = "/ofertas-de-empleo-en-INGENIERIA-INDUSTRIAL-{dep_id}.html"
 
+# WhatsApp Cloud API configurations
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_chamba_verify_token_123")
+
 DEPARTMENTS = {
     "15": "Lima", "1": "Amazonas", "2": "Ancash", "3": "Apurímac", "4": "Arequipa",
     "5": "Ayacucho", "6": "Cajamarca", "8": "Callao", "7": "Cusco", "9": "Huancavelica",
@@ -48,6 +53,33 @@ def send_telegram_message(chat_id: int, text: str, reply_markup: Optional[dict] 
         print(f"[*] Send message status: {r.status_code}, response: {r.text}")
     except Exception as e:
         print(f"[ERROR] Failed to send Telegram message: {e}")
+
+
+def send_whatsapp_message(to_phone: str, text: str):
+    """Sends a text message using the Meta WhatsApp Cloud API."""
+    if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_NUMBER_ID:
+        print("[WARNING] WhatsApp Cloud API credentials not configured.")
+        return
+    url = f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": to_phone,
+        "type": "text",
+        "text": {
+            "preview_url": False,
+            "body": text
+        }
+    }
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=15)
+        print(f"[*] Send WhatsApp status: {r.status_code}, response: {r.text}")
+    except Exception as e:
+        print(f"[ERROR] Failed to send WhatsApp message: {e}")
 
 
 def answer_callback_query(callback_query_id: str):
@@ -543,5 +575,149 @@ async def telegram_webhook(request: Request):
             
     except Exception as e:
         print(f"[ERROR] Error handling webhook: {e}")
+        
+    return {"status": "ok"}
+
+
+@app.get("/webhook/whatsapp")
+def verify_whatsapp_webhook(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_challenge: int = Query(None, alias="hub.challenge"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token")
+):
+    """Webhook validation GET request from Meta Graph API."""
+    if hub_mode == "subscribe" and hub_verify_token == WHATSAPP_VERIFY_TOKEN:
+        print("[*] WhatsApp webhook verified successfully!")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=str(hub_challenge))
+    return JSONResponse(status_code=403, content={"error": "Verification failed"})
+
+
+def process_whatsapp_message_async(from_phone: str, message_body: str):
+    """Handles parsing and responding to WhatsApp incoming text messages."""
+    text = message_body.strip().lower()
+    
+    # Menú de ayuda básico de WhatsApp
+    if text in ["hola", "start", "menu", "ayuda", "/start"]:
+        msg = (
+            "🏛️ *¡Buscador de Chamba del Estado en WhatsApp!* 🏛️\n\n"
+            "Escribe una de las siguientes palabras clave para buscar convocatorias vigentes:\n\n"
+            "👉 *chamba* - Ingeniería Industrial Lima (Menor experiencia)\n"
+            "👉 *sistemas* - Ingeniería de Sistemas Lima\n"
+            "👉 *administracion* - Administración Lima\n"
+            "👉 *contabilidad* - Contabilidad Lima\n"
+            "👉 *derecho* - Derecho Lima\n"
+            "👉 *educacion* - Educación Lima\n"
+            "👉 *servir* - Convocatorias de SERVIR Lima"
+        )
+        send_whatsapp_message(from_phone, msg)
+        return
+
+    carrera_urls = {
+        "chamba": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-INGENIERIA-INDUSTRIAL-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=",
+        "sistemas": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-INGENIERIA-DE-SISTEMAS-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=",
+        "administracion": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-ADMINISTRACION-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=",
+        "contabilidad": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-CONTABILIDAD-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=",
+        "derecho": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-DERECHO-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios=",
+        "educacion": "https://www.convocatoriasdetrabajo.com/ofertas-de-empleo-en-EDUCACION-15.html?sort=1-fechapublicacion&contrato=&departamento=15&nivel_estudios="
+    }
+
+    if text in carrera_urls:
+        target_url = carrera_urls[text]
+        send_whatsapp_message(from_phone, f"⏳ Buscando ofertas de empleo para {text.upper()} en Lima... Esto tomará unos segundos.")
+        try:
+            jobs = scrape_convocatorias(target_url, pages=1, workers=5, timeout=15)
+            if not jobs:
+                send_whatsapp_message(from_phone, f"❌ No se encontraron ofertas vigentes para {text.upper()}.")
+                return
+            
+            jobs.sort(key=lambda x: (x["experience_years"], -x["salary_numeric"]))
+            
+            lines = [f"🔥 *Ofertas de {text.upper()} en Lima (Menor Exp. primero):*\n"]
+            for i, job in enumerate(jobs[:8], 1):
+                exp = "Sin Experiencia" if job['experience_years'] == 0.0 else f"{job['experience_years']} años"
+                sal = f"S/. {job['salary_numeric']:.0f}" if job['salary_numeric'] > 0 else "No especificado"
+                
+                line = (
+                    f"*{i}. {job['entity']}*\n"
+                    f"💼 {job['title']}\n"
+                    f"⭐ Exp: {exp} | 💵 Remuneración: {sal}\n"
+                    f"📅 Finaliza: {job['ends_date']}\n"
+                    f"👉 Enlace: {job['detail_url']}\n"
+                )
+                lines.append(line)
+            send_whatsapp_message(from_phone, "\n".join(lines))
+        except Exception as e:
+            print(f"[ERROR] WhatsApp Convocatorias: {e}")
+            send_whatsapp_message(from_phone, "❌ Ocurrió un error al procesar la búsqueda.")
+        return
+
+    if text == "servir":
+        send_whatsapp_message(from_phone, "⏳ Buscando ofertas en el portal SERVIR... Esto tomará unos 30 segundos (carga JS).")
+        try:
+            jobs = scrape_servir_for_bot(departamento="LIMA", max_pages=3)
+            if not jobs:
+                send_whatsapp_message(from_phone, "❌ No se encontraron ofertas vigentes en SERVIR.")
+                return
+            jobs.sort(key=lambda x: (x.get('experiencia_years', 0.0), -x.get('remuneracion_numeric', 0.0)))
+            
+            lines = ["🏛️ *Ofertas en SERVIR Lima (Menor Exp. primero):*\n"]
+            for i, job in enumerate(jobs[:8], 1):
+                exp_years = job.get('experiencia_years', 0.0)
+                exp = "Sin Experiencia" if exp_years == 0.0 else f"{exp_years:.1f} años"
+                sal = job.get('remuneracion_numeric', 0.0)
+                sal_label = f"S/. {sal:.0f}" if sal > 0 else "No especificado"
+                
+                line = (
+                    f"*{i}. {job.get('entidad', 'N/D')}*\n"
+                    f"💼 {job.get('puesto', 'N/D')}\n"
+                    f"⭐ Exp: {exp} | 💵 {sal_label} | 📌 {job.get('regimen', '')}\n"
+                    f"📅 Cierre: {job.get('fecha_fin', 'N/D')}\n"
+                    f"👉 Enlace: {job.get('link_detalle', 'N/A')}\n"
+                )
+                lines.append(line)
+            send_whatsapp_message(from_phone, "\n".join(lines))
+        except Exception as e:
+            print(f"[ERROR] WhatsApp SERVIR: {e}")
+            send_whatsapp_message(from_phone, "❌ Ocurrió un error al consultar SERVIR.")
+        return
+
+    # Mensaje por defecto
+    send_whatsapp_message(
+        from_phone, 
+        "🤔 No entendí ese comando. Escribe *menu* para ver la lista de palabras clave disponibles."
+    )
+
+
+@app.post("/webhook/whatsapp")
+async def receive_whatsapp_webhook(request: Request):
+    """Processes incoming events/messages sent by the Meta WhatsApp webhook."""
+    try:
+        data = await request.json()
+        print(f"[*] Received WhatsApp Webhook: {data}")
+        
+        # Parse text messages
+        entry = data.get("entry", [])
+        if entry:
+            changes = entry[0].get("changes", [])
+            if changes:
+                value = changes[0].get("value", {})
+                messages = value.get("messages", [])
+                if messages:
+                    msg = messages[0]
+                    from_phone = msg.get("from")
+                    msg_type = msg.get("type")
+                    
+                    if msg_type == "text" and from_phone:
+                        body = msg.get("text", {}).get("body", "")
+                        # Process in thread to return 200 OK instantly to Meta
+                        threading.Thread(
+                            target=process_whatsapp_message_async, 
+                            args=(from_phone, body), 
+                            daemon=True
+                        ).start()
+                        
+    except Exception as e:
+        print(f"[ERROR] Handling WhatsApp webhook: {e}")
         
     return {"status": "ok"}
